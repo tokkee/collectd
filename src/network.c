@@ -351,22 +351,39 @@ static _Bool check_send_okay (const value_list_t *vl) /* {{{ */
   return (!received);
 } /* }}} _Bool check_send_okay */
 
-static int network_dispatch_values (value_list_t *vl, /* {{{ */
+static int network_dispatch_values (value_list_t *vl_orig, /* {{{ */
     const char *username)
 {
+  value_list_t vl;
+
   int status;
 
-  if ((vl->time <= 0)
-      || (strlen (vl->host) <= 0)
-      || (strlen (vl->plugin) <= 0)
-      || (strlen (vl->type) <= 0))
+  memset (&vl, 0, sizeof (vl));
+
+  /* plugin_dispatch_values may overwrite/modify some of this but this is also
+   * reused in parse_packet */
+  vl.values     = vl_orig->values;
+  vl.values_len = vl_orig->values_len;
+  vl.time       = vl_orig->time;
+  vl.interval   = vl_orig->interval;
+  vl.meta       = vl_orig->meta;
+  sstrncpy (vl.host, vl_orig->host, sizeof (vl.host));
+  sstrncpy (vl.plugin, vl_orig->plugin, sizeof (vl.plugin));
+  sstrncpy (vl.plugin_instance, vl_orig->plugin_instance, sizeof (vl.plugin_instance));
+  sstrncpy (vl.type, vl_orig->type, sizeof (vl.type));
+  sstrncpy (vl.type_instance, vl_orig->type_instance, sizeof (vl.type_instance));
+
+  if ((vl.time <= 0)
+      || (strlen (vl.host) <= 0)
+      || (strlen (vl.plugin) <= 0)
+      || (strlen (vl.type) <= 0))
     return (-EINVAL);
 
-  if (!check_receive_okay (vl))
+  if (!check_receive_okay (&vl))
   {
 #if COLLECT_DEBUG
     char name[6*DATA_MAX_NAME_LEN];
-    FORMAT_VL (name, sizeof (name), vl);
+    FORMAT_VL (name, sizeof (name), &vl);
     name[sizeof (name) - 1] = 0;
     DEBUG ("network plugin: network_dispatch_values: "
 	"NOT dispatching %s.", name);
@@ -375,41 +392,41 @@ static int network_dispatch_values (value_list_t *vl, /* {{{ */
     return (0);
   }
 
-  assert (vl->meta == NULL);
+  assert (vl.meta == NULL);
 
-  vl->meta = meta_data_create ();
-  if (vl->meta == NULL)
+  vl.meta = meta_data_create ();
+  if (vl.meta == NULL)
   {
     ERROR ("network plugin: meta_data_create failed.");
     return (-ENOMEM);
   }
 
-  status = meta_data_add_boolean (vl->meta, "network:received", true);
+  status = meta_data_add_boolean (vl.meta, "network:received", true);
   if (status != 0)
   {
     ERROR ("network plugin: meta_data_add_boolean failed.");
-    meta_data_destroy (vl->meta);
-    vl->meta = NULL;
+    meta_data_destroy (vl.meta);
+    vl.meta = NULL;
     return (status);
   }
 
   if (username != NULL)
   {
-    status = meta_data_add_string (vl->meta, "network:username", username);
+    status = meta_data_add_string (vl.meta, "network:username", username);
     if (status != 0)
     {
       ERROR ("network plugin: meta_data_add_string failed.");
-      meta_data_destroy (vl->meta);
-      vl->meta = NULL;
+      meta_data_destroy (vl.meta);
+      vl.meta = NULL;
       return (status);
     }
   }
 
-  plugin_dispatch_values (vl);
+  plugin_dispatch_values (&vl);
   stats_values_dispatched++;
 
-  meta_data_destroy (vl->meta);
-  vl->meta = NULL;
+  meta_data_destroy (vl.meta);
+  vl.meta = NULL;
 
   return (0);
 } /* }}} int network_dispatch_values */
