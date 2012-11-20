@@ -48,7 +48,7 @@ perl: buildperl/Makefile
 
 buildperl/Makefile: .perl-directory-stamp buildperl/Makefile.PL \
 	$(top_builddir)/config.status
-	cd buildperl && @PERL@ Makefile.PL INSTALL_BASE=$(prefix) @PERL_BINDINGS_OPTIONS@
+	cd buildperl && @PERL@ Makefile.PL @PERL_BINDINGS_OPTIONS@
 
 buildperl/Makefile.PL: .perl-directory-stamp $(top_builddir)/config.status
 
